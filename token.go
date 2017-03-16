@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"golang.org/x/net/context"
+	"fmt"
 )
 
 //go:generate stringer -type token
@@ -22,6 +23,7 @@ const (
 	tokenOrder        token = 169 // 0xA9
 	tokenError        token = 170 // 0xAA
 	tokenInfo         token = 171 // 0xAB
+	tokenRETURNPARAM  token = 172 // 0xAC
 	tokenLoginAck     token = 173 // 0xad
 	tokenRow          token = 209 // 0xd1
 	tokenNbcRow       token = 210 // 0xd2
@@ -450,7 +452,21 @@ func parseColMetadata72(r *tdsBuffer) (columns []columnStruct) {
 	}
 	return columns
 }
-
+// https://msdn.microsoft.com/en-us/library/dd303881.aspx
+func paraseReturnParams(r *tdsBuffer){
+	
+	fmt.Sprintf("ParamOrdinal:%+v\n",r.uint16())
+	fmt.Sprintf("ParamName:%+v\n", r.BVarChar())
+	fmt.Sprintf("Status:%+v\n", r.byte())
+	fmt.Sprintf("UserType:%+v\n", r.uint32())
+	fmt.Sprintf("Flags:%+v\n", r.byte())
+	fmt.Sprintf("Flags:%+v\n", r.byte())
+	r1:=readTypeInfo(r)
+	fmt.Sprintf("TypeInfo:%+v\n", r1)
+	//fmt.Printf("CryptoMetadata:%+v\n", r.byte())
+	fmt.Printf("Value:%+v\n", r1.Reader(&r1, r))
+	//fmt.Printf("TypeInfo:%+v\n", readTypeInfo(r))
+}
 // http://msdn.microsoft.com/en-us/library/dd357254.aspx
 func parseRow(r *tdsBuffer, columns []columnStruct, row []interface{}) {
 	for i, column := range columns {
@@ -595,6 +611,10 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 			if sess.logFlags&logMessages != 0 {
 				sess.log.Println(info.Message)
 			}
+		case tokenRETURNPARAM:
+			//fmt.Printf("%v",sess.buf)
+			paraseReturnParams(sess.buf)
+			sess.log.Println("info.Message")
 		default:
 			badStreamPanicf("Unknown token type: %d", token)
 		}

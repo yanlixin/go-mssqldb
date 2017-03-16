@@ -84,6 +84,9 @@ func sendRpc(buf *tdsBuffer, headers []headerStruct, proc ProcId, flags uint16, 
 		if err = writeBVarChar(buf, param.Name); err != nil {
 			return
 		}
+		if param.Name =="@p1" {
+			param.Flags=1
+		}
 		if err = binary.Write(buf, binary.LittleEndian, param.Flags); err != nil {
 			return
 		}

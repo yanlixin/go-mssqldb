@@ -277,7 +277,12 @@ func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 				name = fmt.Sprintf("@p%d", val.Ordinal)
 			}
 			params[i+2].Name = name
-			decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+2].ti))
+			if name=="@p1" {
+				decls[i] = fmt.Sprintf("%s %s output", name, makeDecl(params[i+2].ti))
+			} else {
+				decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+2].ti))
+			}
+			
 		}
 		params[1] = makeStrParam(strings.Join(decls, ","))
 		if err = sendRpc(s.c.sess.buf, headers, Sp_ExecuteSql, 0, params); err != nil {
