@@ -6,13 +6,13 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 	"io"
 	"math"
 	"net"
 	"reflect"
 	"strings"
 	"time"
-	"golang.org/x/net/context" // use the "x/net/context" for backwards compatibility.
 )
 
 var driverInstance = &MssqlDriver{processQueryText: true}
@@ -197,6 +197,7 @@ type MssqlStmt struct {
 	query      string
 	paramCount int
 	notifSub   *queryNotifSub
+	params     []driver.NamedValue
 }
 
 type queryNotifSub struct {
@@ -214,7 +215,7 @@ func (c *MssqlConn) prepareContext(ctx context.Context, query string) (*MssqlStm
 	if c.processQueryText {
 		query, paramCount = parseParams(query)
 	}
-	return &MssqlStmt{c, query, paramCount, nil}, nil
+	return &MssqlStmt{c, query, paramCount, nil, nil}, nil
 }
 
 func (s *MssqlStmt) Close() error {
@@ -232,7 +233,6 @@ func (s *MssqlStmt) SetQueryNotification(id, options string, timeout time.Durati
 func (s *MssqlStmt) NumInput() int {
 	return s.paramCount
 }
-
 func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 	headers := []headerStruct{
 		{hdrtype: dataStmHdrTransDescr,
@@ -277,12 +277,12 @@ func (s *MssqlStmt) sendQuery(args []namedValue) (err error) {
 				name = fmt.Sprintf("@p%d", val.Ordinal)
 			}
 			params[i+2].Name = name
-			if name=="@p1" {
+			if strings.LastIndex(name, "out_") > 0 {
 				decls[i] = fmt.Sprintf("%s %s output", name, makeDecl(params[i+2].ti))
 			} else {
 				decls[i] = fmt.Sprintf("%s %s", name, makeDecl(params[i+2].ti))
 			}
-			
+
 		}
 		params[1] = makeStrParam(strings.Join(decls, ","))
 		if err = sendRpc(s.c.sess.buf, headers, Sp_ExecuteSql, 0, params); err != nil {
@@ -369,7 +369,9 @@ func (s *MssqlStmt) processExec(ctx context.Context) (res driver.Result, err err
 	tokchan := make(chan tokenStruct, 5)
 	go processResponse(ctx, s.c.sess, tokchan)
 	var rowCount int64
+
 	for token := range tokchan {
+
 		switch token := token.(type) {
 		case doneInProcStruct:
 			if token.Status&doneCount != 0 {
@@ -382,6 +384,9 @@ func (s *MssqlStmt) processExec(ctx context.Context) (res driver.Result, err err
 			if token.isError() {
 				return nil, token.getError()
 			}
+		case []driver.NamedValue:
+			//fmt.Printf("%+v",token)
+			s.params = append(s.params, token[0])
 		case error:
 			return nil, token
 		}

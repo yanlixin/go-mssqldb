@@ -2,6 +2,7 @@ package mssql
 
 import (
 	"encoding/binary"
+	"strings"
 )
 
 type ProcId struct {
@@ -84,7 +85,7 @@ func sendRpc(buf *tdsBuffer, headers []headerStruct, proc ProcId, flags uint16, 
 		if err = writeBVarChar(buf, param.Name); err != nil {
 			return
 		}
-		if param.Name =="@p1" {
+		if strings.LastIndex(param.Name, "out_") >0   {
 			param.Flags=1
 		}
 		if err = binary.Write(buf, binary.LittleEndian, param.Flags); err != nil {

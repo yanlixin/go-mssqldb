@@ -7,7 +7,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
-
+	"database/sql/driver"
 	"golang.org/x/net/context"
 	"fmt"
 )
@@ -453,10 +453,10 @@ func parseColMetadata72(r *tdsBuffer) (columns []columnStruct) {
 	return columns
 }
 // https://msdn.microsoft.com/en-us/library/dd303881.aspx
-func paraseReturnParams(r *tdsBuffer){
+func paraseReturnParams(r *tdsBuffer) []driver.NamedValue {
 	
 	fmt.Sprintf("ParamOrdinal:%+v\n",r.uint16())
-	fmt.Sprintf("ParamName:%+v\n", r.BVarChar())
+	name:=fmt.Sprintf("ParamName:%+v\n", r.BVarChar())
 	fmt.Sprintf("Status:%+v\n", r.byte())
 	fmt.Sprintf("UserType:%+v\n", r.uint32())
 	fmt.Sprintf("Flags:%+v\n", r.byte())
@@ -464,7 +464,12 @@ func paraseReturnParams(r *tdsBuffer){
 	r1:=readTypeInfo(r)
 	fmt.Sprintf("TypeInfo:%+v\n", r1)
 	//fmt.Printf("CryptoMetadata:%+v\n", r.byte())
-	fmt.Printf("Value:%+v\n", r1.Reader(&r1, r))
+	//fmt.Printf("Value:%+v\n", r1.Reader(&r1, r))
+	val:=r1.Reader(&r1, r)
+	
+	var result = []driver.NamedValue{driver.NamedValue{Name:name,Ordinal:1, Value:val}}
+	
+	return result
 	//fmt.Printf("TypeInfo:%+v\n", readTypeInfo(r))
 }
 // http://msdn.microsoft.com/en-us/library/dd357254.aspx
@@ -613,8 +618,9 @@ func processSingleResponse(sess *tdsSession, ch chan tokenStruct) {
 			}
 		case tokenRETURNPARAM:
 			//fmt.Printf("%v",sess.buf)
-			paraseReturnParams(sess.buf)
-			sess.log.Println("info.Message")
+			
+			result:= paraseReturnParams(sess.buf)
+			ch <- result
 		default:
 			badStreamPanicf("Unknown token type: %d", token)
 		}
